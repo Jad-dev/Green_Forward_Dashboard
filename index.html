@@ -33,11 +33,12 @@
         }
     </script>
 
-    <!-- Data Logic - Must be defined before Alpine loads or inside alpine:init -->
+    <!-- Data Logic - Defined globally before Alpine loads -->
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('appData', () => ({
+        function appData() {
+            return {
                 currentTab: 'flow',
+                mobileMenuOpen: false, // État pour le menu mobile
                 titles: {
                     'flow': 'Flux d\'Activités & Roadmap',
                     'diagnostic': 'Diagnostic Initial (A.1.2)',
@@ -50,20 +51,27 @@
                     'advocacy': 'Plaidoyer & Politique'
                 },
                 init() {
-                    // Initialize charts on mount with a small delay to ensure DOM elements exist
+                    // Initialiser les graphiques au montage avec un petit délai
                     setTimeout(() => {
                         this.initCharts();
                     }, 100);
+                    
+                    // Surveiller les changements d'onglets pour scroller en haut
+                    this.$watch('currentTab', () => {
+                        this.mobileMenuOpen = false; // Fermer le menu après sélection
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
                 },
                 initCharts() {
-                    // Helper to safely create chart if element exists
+                    // Fonction utilitaire pour créer les graphiques en toute sécurité
                     const createChart = (id, config) => {
                          const el = document.getElementById(id);
-                         // Destroy existing chart if it exists to prevent canvas reuse errors
+                         if (!el) return; // Si l'élément n'existe pas (onglet caché), on ignore
+
                          const existingChart = Chart.getChart(el);
                          if (existingChart) existingChart.destroy();
                          
-                         if(el) new Chart(el, config);
+                         new Chart(el, config);
                     };
 
                     // 1. Diagnostic Chart
@@ -92,7 +100,7 @@
                         options: { responsive: true, maintainAspectRatio: false }
                     });
 
-                    // 3. Post Conf Chart (Radar)
+                    // 3. Post Conf Chart (Radar/Bar)
                     createChart('chartPostConf', {
                         type: 'bar',
                         data: {
@@ -110,15 +118,14 @@
                         }
                     });
                 }
-            }));
-        });
+            };
+        }
     </script>
 
-    <!-- Alpine.js -->
+    <!-- Alpine.js - Chargé après la définition de la fonction -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
     <style>
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #10B981; border-radius: 4px; }
@@ -136,147 +143,172 @@
             color: #064E3B;
             border-right: 4px solid #10B981;
         }
+        
+        /* Transition pour la sidebar mobile */
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
     </style>
 </head>
-<!-- Initialize Alpine data here -->
-<body class="bg-brand-surface text-slate-800 h-screen overflow-hidden flex" x-data="appData">
+<!-- Initialisation avec la fonction globale -->
+<body class="bg-brand-surface text-slate-800 h-screen overflow-hidden flex" x-data="appData()">
+
+    <!-- MOBILE MENU OVERLAY -->
+    <div x-show="mobileMenuOpen" 
+         @click="mobileMenuOpen = false"
+         x-transition.opacity
+         class="fixed inset-0 bg-black/50 z-20 lg:hidden"></div>
 
     <!-- SIDEBAR NAVIGATION -->
-    <aside class="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col h-full z-20">
-        <div class="p-6 border-b border-slate-100 flex items-center gap-3">
-            <div class="w-10 h-10 bg-brand-primary text-white rounded-lg flex items-center justify-center font-bold text-xl shadow-lg">GF</div>
-            <div>
-                <h1 class="font-bold text-slate-800 leading-tight">GREEN<br>FORWARD</h1>
+    <aside :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+           class="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col h-full z-30 sidebar-transition lg:static lg:inset-auto lg:transform-none">
+        
+        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-brand-primary text-white rounded-lg flex items-center justify-center font-bold text-xl shadow-lg">GF</div>
+                <div>
+                    <h1 class="font-bold text-slate-800 leading-tight">GREEN<br>FORWARD</h1>
+                </div>
             </div>
+            <!-- Close button for mobile -->
+            <button @click="mobileMenuOpen = false" class="lg:hidden text-slate-500 hover:text-slate-800">
+                <i class="fa-solid fa-times text-xl"></i>
+            </button>
         </div>
 
         <nav class="flex-1 overflow-y-auto py-4">
             <div class="px-4 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Vue Globale</div>
             <a @click="currentTab = 'flow'" :class="{ 'active': currentTab === 'flow' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-diagram-project w-5"></i> Flow Chart & Roadmap
+                <i class="fa-solid fa-diagram-project w-5"></i> <span class="truncate">Flow Chart & Roadmap</span>
             </a>
 
             <div class="px-4 mt-6 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Phase 1 : Activation</div>
             <a @click="currentTab = 'diagnostic'" :class="{ 'active': currentTab === 'diagnostic' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-magnifying-glass-chart w-5"></i> 1. Diagnostic Initial
+                <i class="fa-solid fa-magnifying-glass-chart w-5"></i> <span class="truncate">1. Diagnostic Initial</span>
             </a>
             <a @click="currentTab = 'pre-conf'" :class="{ 'active': currentTab === 'pre-conf' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-chalkboard-user w-5"></i> 2. Ateliers Pré-Conf.
+                <i class="fa-solid fa-chalkboard-user w-5"></i> <span class="truncate">2. Ateliers Pré-Conf.</span>
             </a>
 
             <div class="px-4 mt-6 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Phase 2 : Le Fest (SIF)</div>
             <a @click="currentTab = 'sif'" :class="{ 'active': currentTab === 'sif' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-users w-5"></i> 3. Conférence Int.
+                <i class="fa-solid fa-users w-5"></i> <span class="truncate">3. Conférence Int.</span>
             </a>
             <a @click="currentTab = 'during-conf'" :class="{ 'active': currentTab === 'during-conf' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-fire w-5"></i> 4. Ateliers Durant Conf.
+                <i class="fa-solid fa-fire w-5"></i> <span class="truncate">4. Ateliers Durant Conf.</span>
             </a>
 
             <div class="px-4 mt-6 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Phase 3 : Consolidation</div>
             <a @click="currentTab = 'post-conf'" :class="{ 'active': currentTab === 'post-conf' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-graduation-cap w-5"></i> 5. Ateliers Post-Conf.
+                <i class="fa-solid fa-graduation-cap w-5"></i> <span class="truncate">5. Ateliers Post-Conf.</span>
             </a>
             <a @click="currentTab = 'tailor-made'" :class="{ 'active': currentTab === 'tailor-made' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-compass-drafting w-5"></i> 6. Programme Sur-Mesure
+                <i class="fa-solid fa-compass-drafting w-5"></i> <span class="truncate">6. Programme Sur-Mesure</span>
             </a>
 
             <div class="px-4 mt-6 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Phase 4 : Impact</div>
             <a @click="currentTab = 'toolbox'" :class="{ 'active': currentTab === 'toolbox' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-box-open w-5"></i> 7. Green Toolbox
+                <i class="fa-solid fa-box-open w-5"></i> <span class="truncate">7. Green Toolbox</span>
             </a>
             <a @click="currentTab = 'advocacy'" :class="{ 'active': currentTab === 'advocacy' }" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                <i class="fa-solid fa-landmark w-5"></i> 8. Plaidoyer (Policy)
+                <i class="fa-solid fa-landmark w-5"></i> <span class="truncate">8. Plaidoyer (Policy)</span>
             </a>
         </nav>
     </aside>
 
     <!-- MAIN CONTENT AREA -->
-    <main class="flex-1 overflow-y-auto bg-slate-50 p-8 relative">
+    <main class="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-8 relative w-full">
         
-        <!-- HEADER -->
-        <header class="mb-8 flex justify-between items-end">
-            <div>
-                <p class="text-sm text-brand-primary font-bold uppercase tracking-wider mb-1">Programme Green Forward</p>
-                <h2 class="text-3xl font-bold text-brand-dark" x-text="titles[currentTab]"></h2>
+        <!-- HEADER (Responsive) -->
+        <header class="mb-8 flex flex-col md:flex-row justify-between md:items-end gap-4">
+            <div class="flex items-center gap-4">
+                <!-- Mobile Menu Button -->
+                <button @click="mobileMenuOpen = true" class="lg:hidden p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div>
+                    <p class="text-xs md:text-sm text-brand-primary font-bold uppercase tracking-wider mb-1">Programme Green Forward</p>
+                    <h2 class="text-xl md:text-3xl font-bold text-brand-dark leading-tight" x-text="titles[currentTab]"></h2>
+                </div>
             </div>
-            <div class="flex gap-2">
-                <span class="px-3 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-500">Enactus</span>
-                <span class="px-3 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-500">SPARK</span>
-                <span class="px-3 py-1 bg-blue-50 border border-blue-100 rounded text-xs font-bold text-blue-600">UE</span>
+            <div class="flex flex-wrap gap-2">
+                <span class="px-3 py-1 bg-white border border-slate-200 rounded text-[10px] md:text-xs font-bold text-slate-500">Enactus</span>
+                <span class="px-3 py-1 bg-white border border-slate-200 rounded text-[10px] md:text-xs font-bold text-slate-500">SPARK</span>
+                <span class="px-3 py-1 bg-blue-50 border border-blue-100 rounded text-[10px] md:text-xs font-bold text-blue-600">UE</span>
             </div>
         </header>
 
         <!-- VIEW: FLOW CHART (HOME) -->
         <div x-show="currentTab === 'flow'" x-transition.opacity class="space-y-8">
-            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+            <div class="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-slate-200">
                 <div class="flex items-center gap-4 mb-6">
-                    <div class="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-dark"><i class="fa-solid fa-route text-xl"></i></div>
+                    <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-dark shrink-0"><i class="fa-solid fa-route text-lg md:text-xl"></i></div>
                     <div>
-                        <h3 class="text-xl font-bold">Le Parcours d'Intervention</h3>
-                        <p class="text-slate-500 text-sm">Une approche séquentielle pour transformer l'écosystème.</p>
+                        <h3 class="text-lg md:text-xl font-bold">Le Parcours d'Intervention</h3>
+                        <p class="text-slate-500 text-xs md:text-sm">Une approche séquentielle pour transformer l'écosystème.</p>
                     </div>
                 </div>
                 
                 <!-- Timeline Visual -->
-                <div class="relative pl-8 border-l-2 border-slate-200 space-y-12 py-4">
+                <div class="relative pl-4 md:pl-8 border-l-2 border-slate-200 space-y-8 md:space-y-12 py-4">
                     
                     <!-- Step 1 -->
                     <div class="relative group cursor-pointer" @click="currentTab = 'diagnostic'">
-                        <div class="absolute -left-[41px] bg-white border-4 border-brand-primary w-6 h-6 rounded-full group-hover:scale-125 transition"></div>
+                        <div class="absolute -left-[25px] md:-left-[41px] bg-white border-4 border-brand-primary w-4 h-4 md:w-6 md:h-6 rounded-full group-hover:scale-125 transition"></div>
                         <div class="bg-brand-surface p-4 rounded-xl border border-slate-100 hover:border-brand-primary hover:shadow-md transition">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-bold text-slate-800">1. Diagnostic & Cartographie</h4>
-                                <span class="text-xs font-bold bg-slate-200 px-2 py-1 rounded">T1 2025</span>
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                <h4 class="font-bold text-slate-800 text-sm md:text-base">1. Diagnostic & Cartographie</h4>
+                                <span class="text-[10px] md:text-xs font-bold bg-slate-200 px-2 py-1 rounded w-fit">T1 2025</span>
                             </div>
-                            <p class="text-sm text-slate-500 mt-1">125 répondants, identification du "Missing Middle".</p>
+                            <p class="text-xs md:text-sm text-slate-500 mt-1">125 répondants, identification du "Missing Middle".</p>
                         </div>
                     </div>
 
                     <!-- Step 2 & 3 & 4 -->
                     <div class="relative group cursor-pointer" @click="currentTab = 'sif'">
-                        <div class="absolute -left-[41px] bg-white border-4 border-brand-primary w-6 h-6 rounded-full group-hover:scale-125 transition"></div>
+                        <div class="absolute -left-[25px] md:-left-[41px] bg-white border-4 border-brand-primary w-4 h-4 md:w-6 md:h-6 rounded-full group-hover:scale-125 transition"></div>
                         <div class="bg-brand-surface p-4 rounded-xl border border-slate-100 hover:border-brand-primary hover:shadow-md transition">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-bold text-slate-800">2, 3 & 4. Cycle Conférence (Pré, Durant, SIF)</h4>
-                                <span class="text-xs font-bold bg-slate-200 px-2 py-1 rounded">Juillet 2025</span>
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                <h4 class="font-bold text-slate-800 text-sm md:text-base">2, 3 & 4. Cycle Conférence (Pré, Durant, SIF)</h4>
+                                <span class="text-[10px] md:text-xs font-bold bg-slate-200 px-2 py-1 rounded w-fit">Juillet 2025</span>
                             </div>
-                            <p class="text-sm text-slate-500 mt-1">Mobilisation de 1546 acteurs et formation de 15 SAEs.</p>
+                            <p class="text-xs md:text-sm text-slate-500 mt-1">Mobilisation de 1546 acteurs et formation de 15 SAEs.</p>
                         </div>
                     </div>
 
                     <!-- Step 5 -->
                     <div class="relative group cursor-pointer" @click="currentTab = 'post-conf'">
-                        <div class="absolute -left-[41px] bg-white border-4 border-brand-accent w-6 h-6 rounded-full group-hover:scale-125 transition"></div>
+                        <div class="absolute -left-[25px] md:-left-[41px] bg-white border-4 border-brand-accent w-4 h-4 md:w-6 md:h-6 rounded-full group-hover:scale-125 transition"></div>
                         <div class="bg-brand-surface p-4 rounded-xl border border-slate-100 hover:border-brand-accent hover:shadow-md transition">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-bold text-slate-800">5. Consolidation Post-Conférence</h4>
-                                <span class="text-xs font-bold bg-slate-200 px-2 py-1 rounded">Septembre 2025</span>
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                <h4 class="font-bold text-slate-800 text-sm md:text-base">5. Consolidation Post-Conférence</h4>
+                                <span class="text-[10px] md:text-xs font-bold bg-slate-200 px-2 py-1 rounded w-fit">Septembre 2025</span>
                             </div>
-                            <p class="text-sm text-slate-500 mt-1">Bootcamp "Peer Pods" et co-création d'outils digitaux.</p>
+                            <p class="text-xs md:text-sm text-slate-500 mt-1">Bootcamp "Peer Pods" et co-création d'outils digitaux.</p>
                         </div>
                     </div>
 
                     <!-- Step 6 & 7 -->
                     <div class="relative group cursor-pointer" @click="currentTab = 'tailor-made'">
-                        <div class="absolute -left-[41px] bg-slate-300 border-4 border-white w-6 h-6 rounded-full"></div>
+                        <div class="absolute -left-[25px] md:-left-[41px] bg-slate-300 border-4 border-white w-4 h-4 md:w-6 md:h-6 rounded-full"></div>
                         <div class="bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-300 transition opacity-75">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-bold text-slate-800">6 & 7. Sur-Mesure & Toolbox</h4>
-                                <span class="text-xs font-bold bg-brand-light text-brand-dark px-2 py-1 rounded">En cours (2026)</span>
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                <h4 class="font-bold text-slate-800 text-sm md:text-base">6 & 7. Sur-Mesure & Toolbox</h4>
+                                <span class="text-[10px] md:text-xs font-bold bg-brand-light text-brand-dark px-2 py-1 rounded w-fit">En cours (2026)</span>
                             </div>
-                            <p class="text-sm text-slate-500 mt-1">Accompagnement de 10 SAEs et déploiement PME.</p>
+                            <p class="text-xs md:text-sm text-slate-500 mt-1">Accompagnement de 10 SAEs et déploiement PME.</p>
                         </div>
                     </div>
 
                     <!-- Step 8 -->
                     <div class="relative group cursor-pointer" @click="currentTab = 'advocacy'">
-                        <div class="absolute -left-[41px] bg-slate-300 border-4 border-white w-6 h-6 rounded-full"></div>
+                        <div class="absolute -left-[25px] md:-left-[41px] bg-slate-300 border-4 border-white w-4 h-4 md:w-6 md:h-6 rounded-full"></div>
                         <div class="bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-300 transition opacity-75">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-bold text-slate-800">8. Plaidoyer Politique</h4>
-                                <span class="text-xs font-bold bg-brand-light text-brand-dark px-2 py-1 rounded">Fin 2026</span>
+                            <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                <h4 class="font-bold text-slate-800 text-sm md:text-base">8. Plaidoyer Politique</h4>
+                                <span class="text-[10px] md:text-xs font-bold bg-brand-light text-brand-dark px-2 py-1 rounded w-fit">Fin 2026</span>
                             </div>
-                            <p class="text-sm text-slate-500 mt-1">Policy Paper sur le financement vert.</p>
+                            <p class="text-xs md:text-sm text-slate-500 mt-1">Policy Paper sur le financement vert.</p>
                         </div>
                     </div>
 
@@ -286,36 +318,36 @@
 
         <!-- VIEW: 1. DIAGNOSTIC -->
         <div x-show="currentTab === 'diagnostic'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 <!-- KPI Cards -->
-                <div class="glass-card p-6 rounded-xl border-l-4 border-brand-primary">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Répondants</p>
-                    <p class="text-3xl font-bold text-slate-800 mt-2">125</p>
-                    <p class="text-xs text-slate-400 mt-1">56 MPMEs, 21 SAEs, + Focus Groups</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-brand-primary">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Répondants</p>
+                    <p class="text-2xl md:text-3xl font-bold text-slate-800 mt-2">125</p>
+                    <p class="text-[10px] md:text-xs text-slate-400 mt-1">56 MPMEs, 21 SAEs, + Focus Groups</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl border-l-4 border-brand-primary">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Régions Couvertes</p>
-                    <p class="text-3xl font-bold text-slate-800 mt-2">8</p>
-                    <p class="text-xs text-slate-400 mt-1">Dont Ouarzazate, Agadir, Oujda</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-brand-primary">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Régions Couvertes</p>
+                    <p class="text-2xl md:text-3xl font-bold text-slate-800 mt-2">8</p>
+                    <p class="text-[10px] md:text-xs text-slate-400 mt-1">Dont Ouarzazate, Agadir, Oujda</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl border-l-4 border-red-500">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Manque de Financement</p>
-                    <p class="text-3xl font-bold text-red-600 mt-2">98%</p>
-                    <p class="text-xs text-slate-400 mt-1">Des MPMEs vertes en manque de fonds</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-red-500">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Manque de Financement</p>
+                    <p class="text-2xl md:text-3xl font-bold text-red-600 mt-2">98%</p>
+                    <p class="text-[10px] md:text-xs text-slate-400 mt-1">Des MPMEs vertes en manque de fonds</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <h3 class="font-bold mb-4">Répartition de l'échantillon</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <h3 class="font-bold mb-4 text-sm md:text-base">Répartition de l'échantillon</h3>
                     <div class="h-64"><canvas id="chartDiagnostic"></canvas></div>
                 </div>
-                <div class="glass-card p-6 rounded-xl bg-brand-light/30">
-                    <h3 class="font-bold mb-4 text-brand-dark">Insights Clés</h3>
-                    <ul class="space-y-3 text-sm text-slate-700">
-                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <strong>Missing Middle :</strong> Les MPMEs sont trop grandes pour la microfinance, trop petites pour les banques.</li>
-                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <strong>Gap de Compétence :</strong> 80% des SAEs n'avaient jamais reçu de formation spécifique "Verte".</li>
-                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <strong>Demande :</strong> Besoin critique d'aide à la certification et à la "bankability".</li>
+                <div class="glass-card p-4 md:p-6 rounded-xl bg-brand-light/30">
+                    <h3 class="font-bold mb-4 text-brand-dark text-sm md:text-base">Insights Clés</h3>
+                    <ul class="space-y-3 text-xs md:text-sm text-slate-700">
+                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <span><strong>Missing Middle :</strong> Les MPMEs sont trop grandes pour la microfinance, trop petites pour les banques.</span></li>
+                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <span><strong>Gap de Compétence :</strong> 80% des SAEs n'avaient jamais reçu de formation spécifique "Verte".</span></li>
+                        <li class="flex gap-2"><i class="fa-solid fa-check text-brand-primary mt-1"></i> <span><strong>Demande :</strong> Besoin critique d'aide à la certification et à la "bankability".</span></li>
                     </ul>
                 </div>
             </div>
@@ -323,31 +355,31 @@
 
         <!-- VIEW: 2. PRE-CONFERENCE -->
         <div x-show="currentTab === 'pre-conf'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">SAEs Formées</p>
-                    <p class="text-3xl font-bold text-brand-primary mt-2">15</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">SAEs Formées</p>
+                    <p class="text-2xl md:text-3xl font-bold text-brand-primary mt-2">15</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Ateliers Tenus</p>
-                    <p class="text-3xl font-bold text-brand-primary mt-2">2 Jours</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Ateliers Tenus</p>
+                    <p class="text-2xl md:text-3xl font-bold text-brand-primary mt-2">2 Jours</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Thème Central</p>
-                    <p class="text-xl font-bold text-brand-dark mt-2">Circularité & Rôle Stratégique</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Thème Central</p>
+                    <p class="text-lg md:text-xl font-bold text-brand-dark mt-2">Circularité & Rôle Stratégique</p>
                 </div>
             </div>
             
-            <div class="glass-card p-8 rounded-xl">
-                <h3 class="font-bold mb-4 text-xl">Contenu des Ateliers (Juin 2025)</h3>
-                <div class="grid grid-cols-2 gap-4">
+            <div class="glass-card p-4 md:p-8 rounded-xl">
+                <h3 class="font-bold mb-4 text-lg md:text-xl">Contenu des Ateliers (Juin 2025)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                        <h4 class="font-bold text-brand-primary mb-2">Atelier 1</h4>
-                        <p class="text-sm">Accélérer la Transition Verte : Définir le rôle des SAEs comme catalyseurs.</p>
+                        <h4 class="font-bold text-brand-primary mb-2 text-sm md:text-base">Atelier 1</h4>
+                        <p class="text-xs md:text-sm">Accélérer la Transition Verte : Définir le rôle des SAEs comme catalyseurs.</p>
                     </div>
                     <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                        <h4 class="font-bold text-brand-primary mb-2">Atelier 2</h4>
-                        <p class="text-sm">Accompagner les entreprises Blue & Green vers une circularité rentable et traçable.</p>
+                        <h4 class="font-bold text-brand-primary mb-2 text-sm md:text-base">Atelier 2</h4>
+                        <p class="text-xs md:text-sm">Accompagner les entreprises Blue & Green vers une circularité rentable et traçable.</p>
                     </div>
                 </div>
             </div>
@@ -355,37 +387,37 @@
 
         <!-- VIEW: 3. SIF (CONFÉRENCE) -->
         <div x-show="currentTab === 'sif'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div class="glass-card p-6 rounded-xl bg-brand-dark text-white col-span-2">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl bg-brand-dark text-white md:col-span-2">
                     <div class="flex justify-between items-center">
                         <div>
-                            <p class="text-sm font-bold uppercase opacity-80">Participation Totale</p>
-                            <p class="text-5xl font-bold mt-2">1,546</p>
-                            <p class="text-xs mt-2 opacity-80">Objectif initial : 1,000 (+54%)</p>
+                            <p class="text-xs md:text-sm font-bold uppercase opacity-80">Participation Totale</p>
+                            <p class="text-4xl md:text-5xl font-bold mt-2">1,546</p>
+                            <p class="text-[10px] md:text-xs mt-2 opacity-80">Objectif initial : 1,000 (+54%)</p>
                         </div>
-                        <i class="fa-solid fa-users text-6xl opacity-20"></i>
+                        <i class="fa-solid fa-users text-4xl md:text-6xl opacity-20"></i>
                     </div>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Connexions AGORA</p>
-                    <p class="text-3xl font-bold text-brand-primary mt-2">+350</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Connexions AGORA</p>
+                    <p class="text-2xl md:text-3xl font-bold text-brand-primary mt-2">+350</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Jeunes (18-25 ans)</p>
-                    <p class="text-3xl font-bold text-brand-accent mt-2">78%</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Jeunes (18-25 ans)</p>
+                    <p class="text-2xl md:text-3xl font-bold text-brand-accent mt-2">78%</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <h3 class="font-bold mb-4">Démographie des Participants</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <h3 class="font-bold mb-4 text-sm md:text-base">Démographie des Participants</h3>
                     <div class="h-64"><canvas id="chartSIF"></canvas></div>
                 </div>
-                <div class="glass-card p-6 rounded-xl flex flex-col justify-center">
-                    <h3 class="font-bold mb-4">Impact Qualitatif</h3>
-                    <p class="text-sm text-slate-600 mb-4">L'événement a servi de plateforme de lancement massive. La forte présence féminine (60.5%) et jeune démontre un changement générationnel vers l'économie verte.</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl flex flex-col justify-center">
+                    <h3 class="font-bold mb-4 text-sm md:text-base">Impact Qualitatif</h3>
+                    <p class="text-xs md:text-sm text-slate-600 mb-4">L'événement a servi de plateforme de lancement massive. La forte présence féminine (60.5%) et jeune démontre un changement générationnel vers l'économie verte.</p>
                     <div class="bg-brand-light p-4 rounded-lg border border-brand-primary">
-                        <p class="text-brand-dark font-bold text-sm">"Le SIF n'était pas juste un événement, c'était une preuve de concept de la demande verte au Maroc."</p>
+                        <p class="text-brand-dark font-bold text-xs md:text-sm">"Le SIF n'était pas juste un événement, c'était une preuve de concept de la demande verte au Maroc."</p>
                     </div>
                 </div>
             </div>
@@ -393,38 +425,38 @@
 
         <!-- VIEW: 4. DURING CONF -->
         <div x-show="currentTab === 'during-conf'" class="space-y-6">
-             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Fire Camps</p>
-                    <p class="text-3xl font-bold text-orange-500 mt-2">3</p>
-                    <p class="text-xs text-slate-400">Co-conçus par les SAEs</p>
+             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Fire Camps</p>
+                    <p class="text-2xl md:text-3xl font-bold text-orange-500 mt-2">3</p>
+                    <p class="text-[10px] md:text-xs text-slate-400">Co-conçus par les SAEs</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Participants Fire Camps</p>
-                    <p class="text-3xl font-bold text-orange-500 mt-2">83</p>
-                    <p class="text-xs text-slate-400">Moyenne 27 par session</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Participants Fire Camps</p>
+                    <p class="text-2xl md:text-3xl font-bold text-orange-500 mt-2">83</p>
+                    <p class="text-[10px] md:text-xs text-slate-400">Moyenne 27 par session</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-sm text-slate-500 font-bold uppercase">Satisfaction Ateliers</p>
-                    <p class="text-3xl font-bold text-brand-primary mt-2">4.2/5</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-xs md:text-sm text-slate-500 font-bold uppercase">Satisfaction Ateliers</p>
+                    <p class="text-2xl md:text-3xl font-bold text-brand-primary mt-2">4.2/5</p>
                 </div>
             </div>
             
-            <div class="glass-card p-6 rounded-xl">
-                <h3 class="font-bold mb-4">Détail des Ateliers Techniques (8-10 Juillet)</h3>
+            <div class="glass-card p-4 md:p-6 rounded-xl">
+                <h3 class="font-bold mb-4 text-sm md:text-base">Détail des Ateliers Techniques (8-10 Juillet)</h3>
                 <ul class="divide-y divide-slate-100">
                     <li class="py-4 flex gap-4">
-                        <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-gavel text-slate-600"></i></div>
+                        <div class="w-10 h-10 md:w-12 md:h-12 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-gavel text-slate-600 text-sm md:text-base"></i></div>
                         <div>
-                            <h4 class="font-bold text-slate-800">Green Business & Cadre Réglementaire</h4>
-                            <p class="text-sm text-slate-500">Comprendre les lois, politiques publiques et normes pour structurer l'entrepreneuriat vert.</p>
+                            <h4 class="font-bold text-slate-800 text-sm md:text-base">Green Business & Cadre Réglementaire</h4>
+                            <p class="text-xs md:text-sm text-slate-500">Comprendre les lois, politiques publiques et normes pour structurer l'entrepreneuriat vert.</p>
                         </div>
                     </li>
                     <li class="py-4 flex gap-4">
-                        <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-coins text-slate-600"></i></div>
+                        <div class="w-10 h-10 md:w-12 md:h-12 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-coins text-slate-600 text-sm md:text-base"></i></div>
                         <div>
-                            <h4 class="font-bold text-slate-800">Parcours de Financement Vert</h4>
-                            <p class="text-sm text-slate-500">Construction de la "Bankability" et accès aux fonds pour les MPMEs (le Missing Middle).</p>
+                            <h4 class="font-bold text-slate-800 text-sm md:text-base">Parcours de Financement Vert</h4>
+                            <p class="text-xs md:text-sm text-slate-500">Construction de la "Bankability" et accès aux fonds pour les MPMEs (le Missing Middle).</p>
                         </div>
                     </li>
                 </ul>
@@ -433,34 +465,34 @@
 
         <!-- VIEW: 5. POST CONF (BOOTCAMP) -->
         <div x-show="currentTab === 'post-conf'" class="space-y-6">
-            <div class="flex items-center justify-between p-6 bg-brand-dark text-white rounded-xl shadow-lg">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-4 md:p-6 bg-brand-dark text-white rounded-xl shadow-lg gap-4">
                 <div>
-                    <h3 class="text-2xl font-bold">Bootcamp "Peer Pods"</h3>
-                    <p class="text-brand-light">18-20 Septembre • Rabat</p>
+                    <h3 class="text-xl md:text-2xl font-bold">Bootcamp "Peer Pods"</h3>
+                    <p class="text-brand-light text-sm">18-20 Septembre • Rabat</p>
                 </div>
-                <div class="text-right">
-                    <p class="text-4xl font-bold">14</p>
-                    <p class="text-xs uppercase opacity-80">SAEs Présentes</p>
+                <div class="text-left md:text-right">
+                    <p class="text-3xl md:text-4xl font-bold">14</p>
+                    <p class="text-[10px] md:text-xs uppercase opacity-80">SAEs Présentes</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <h3 class="font-bold mb-4">Satisfaction Globale</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <h3 class="font-bold mb-4 text-sm md:text-base">Satisfaction Globale</h3>
                     <div class="h-64"><canvas id="chartPostConf"></canvas></div>
                 </div>
                 <div class="space-y-4">
-                    <div class="glass-card p-6 rounded-xl border-l-4 border-blue-500">
-                        <h4 class="font-bold text-blue-600 mb-2">Transformation Digitale</h4>
-                        <p class="text-sm text-slate-600">Création d'une "Minimal Viable Digital Stack" pour automatiser la gestion des bénéficiaires.</p>
+                    <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-blue-500">
+                        <h4 class="font-bold text-blue-600 mb-2 text-sm md:text-base">Transformation Digitale</h4>
+                        <p class="text-xs md:text-sm text-slate-600">Création d'une "Minimal Viable Digital Stack" pour automatiser la gestion des bénéficiaires.</p>
                     </div>
-                    <div class="glass-card p-6 rounded-xl border-l-4 border-brand-primary">
-                        <h4 class="font-bold text-brand-primary mb-2">Mesure d'Impact</h4>
-                        <p class="text-sm text-slate-600">Formation aux systèmes S&E et adoption d'indicateurs ESG standards.</p>
+                    <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-brand-primary">
+                        <h4 class="font-bold text-brand-primary mb-2 text-sm md:text-base">Mesure d'Impact</h4>
+                        <p class="text-xs md:text-sm text-slate-600">Formation aux systèmes S&E et adoption d'indicateurs ESG standards.</p>
                     </div>
-                    <div class="glass-card p-6 rounded-xl border-l-4 border-brand-accent">
-                        <h4 class="font-bold text-brand-accent mb-2">Progress Clinic</h4>
-                        <p class="text-sm text-slate-600">Auto-évaluation "Avant/Après" par les SAEs pour mesurer leur évolution institutionnelle.</p>
+                    <div class="glass-card p-4 md:p-6 rounded-xl border-l-4 border-brand-accent">
+                        <h4 class="font-bold text-brand-accent mb-2 text-sm md:text-base">Progress Clinic</h4>
+                        <p class="text-xs md:text-sm text-slate-600">Auto-évaluation "Avant/Après" par les SAEs pour mesurer leur évolution institutionnelle.</p>
                     </div>
                 </div>
             </div>
@@ -468,81 +500,81 @@
 
         <!-- VIEW: 6. TAILOR MADE -->
         <div x-show="currentTab === 'tailor-made'" class="space-y-6">
-            <div class="bg-white p-8 rounded-xl border border-slate-200 text-center">
-                <div class="inline-block p-4 bg-brand-light rounded-full mb-4 text-brand-dark"><i class="fa-solid fa-compass-drafting text-3xl"></i></div>
-                <h3 class="text-2xl font-bold mb-2">Programme Sur-Mesure (A.1.3)</h3>
-                <p class="text-slate-500 max-w-2xl mx-auto">Accompagnement individuel intensif pour transformer structurellement les SAEs sélectionnées.</p>
+            <div class="bg-white p-4 md:p-8 rounded-xl border border-slate-200 text-center">
+                <div class="inline-block p-4 bg-brand-light rounded-full mb-4 text-brand-dark"><i class="fa-solid fa-compass-drafting text-2xl md:text-3xl"></i></div>
+                <h3 class="text-xl md:text-2xl font-bold mb-2">Programme Sur-Mesure (A.1.3)</h3>
+                <p class="text-slate-500 max-w-2xl mx-auto text-xs md:text-sm">Accompagnement individuel intensif pour transformer structurellement les SAEs sélectionnées.</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-6 text-center">
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-3xl font-bold text-brand-dark">13</p>
-                    <p class="text-xs font-bold uppercase mt-1">Candidats</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 text-center">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-2xl md:text-3xl font-bold text-brand-dark">13</p>
+                    <p class="text-[10px] md:text-xs font-bold uppercase mt-1">Candidats</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-3xl font-bold text-brand-primary">10</p>
-                    <p class="text-xs font-bold uppercase mt-1">Sélectionnés (Cible)</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-2xl md:text-3xl font-bold text-brand-primary">10</p>
+                    <p class="text-[10px] md:text-xs font-bold uppercase mt-1">Sélectionnés (Cible)</p>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <p class="text-3xl font-bold text-brand-accent">T1 2026</p>
-                    <p class="text-xs font-bold uppercase mt-1">Lancement</p>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <p class="text-2xl md:text-3xl font-bold text-brand-accent">T1 2026</p>
+                    <p class="text-[10px] md:text-xs font-bold uppercase mt-1">Lancement</p>
                 </div>
             </div>
 
-            <div class="glass-card p-6 rounded-xl">
-                <h4 class="font-bold mb-4">Processus en cours</h4>
+            <div class="glass-card p-4 md:p-6 rounded-xl">
+                <h4 class="font-bold mb-4 text-sm md:text-base">Processus en cours</h4>
                 <div class="w-full bg-slate-100 rounded-full h-4 mb-6">
                     <div class="bg-brand-primary h-4 rounded-full" style="width: 20%"></div>
                 </div>
-                <p class="text-sm text-slate-600">Actuellement : Phase de sélection finale et préparation des termes de référence pour les diagnostics organisationnels.</p>
+                <p class="text-xs md:text-sm text-slate-600">Actuellement : Phase de sélection finale et préparation des termes de référence pour les diagnostics organisationnels.</p>
             </div>
         </div>
 
         <!-- VIEW: 7. TOOLBOX -->
         <div x-show="currentTab === 'toolbox'" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 items-center">
                 <div>
-                    <h3 class="text-2xl font-bold mb-4">Green Business Training Academy (A.2.1)</h3>
-                    <p class="text-slate-600 mb-6">Création et déploiement d'une "Green Toolbox" standardisée pour le marché marocain.</p>
+                    <h3 class="text-xl md:text-2xl font-bold mb-4">Green Business Training Academy (A.2.1)</h3>
+                    <p class="text-slate-600 mb-6 text-sm md:text-base">Création et déploiement d'une "Green Toolbox" standardisée pour le marché marocain.</p>
                     <ul class="space-y-4">
-                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark">1</span> Modules de Formation Avancés</li>
-                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark">2</span> Outils Pratiques (Canvas, KPI ESG)</li>
-                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark">3</span> Pilote avec 30 MPMEs</li>
+                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark shrink-0">1</span> <span class="text-xs md:text-sm">Modules de Formation Avancés</span></li>
+                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark shrink-0">2</span> <span class="text-xs md:text-sm">Outils Pratiques (Canvas, KPI ESG)</span></li>
+                        <li class="flex items-center gap-3 bg-white p-3 rounded shadow-sm"><span class="w-8 h-8 bg-brand-light rounded flex items-center justify-center font-bold text-brand-dark shrink-0">3</span> <span class="text-xs md:text-sm">Pilote avec 30 MPMEs</span></li>
                     </ul>
                 </div>
-                <div class="glass-card p-6 rounded-xl flex flex-col items-center justify-center text-center h-64 border-2 border-dashed border-slate-300">
-                    <i class="fa-solid fa-screwdriver-wrench text-4xl text-slate-300 mb-4"></i>
-                    <p class="font-bold text-slate-500">En phase de développement</p>
-                    <p class="text-xs text-slate-400">Lancement prévu T2 2026</p>
+                <div class="glass-card p-6 rounded-xl flex flex-col items-center justify-center text-center h-48 md:h-64 border-2 border-dashed border-slate-300">
+                    <i class="fa-solid fa-screwdriver-wrench text-3xl md:text-4xl text-slate-300 mb-4"></i>
+                    <p class="font-bold text-slate-500 text-sm md:text-base">En phase de développement</p>
+                    <p class="text-[10px] md:text-xs text-slate-400">Lancement prévu T2 2026</p>
                 </div>
             </div>
         </div>
 
         <!-- VIEW: 8. ADVOCACY -->
         <div x-show="currentTab === 'advocacy'" class="space-y-6">
-            <div class="bg-brand-accent/10 p-8 rounded-xl border border-brand-accent text-center">
-                <h3 class="text-2xl font-bold text-brand-dark mb-2">Action de Plaidoyer (A.2.4)</h3>
-                <p class="text-slate-600">Objectif final : Influencer les politiques publiques pour débloquer le financement.</p>
+            <div class="bg-brand-accent/10 p-4 md:p-8 rounded-xl border border-brand-accent text-center">
+                <h3 class="text-xl md:text-2xl font-bold text-brand-dark mb-2">Action de Plaidoyer (A.2.4)</h3>
+                <p class="text-slate-600 text-xs md:text-sm">Objectif final : Influencer les politiques publiques pour débloquer le financement.</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-card p-6 rounded-xl">
-                    <h4 class="font-bold mb-2">Le Livrable Clé</h4>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <h4 class="font-bold mb-2 text-sm md:text-base">Le Livrable Clé</h4>
                     <div class="flex items-center gap-4 mt-4">
-                        <i class="fa-solid fa-file-lines text-3xl text-brand-primary"></i>
+                        <i class="fa-solid fa-file-lines text-2xl md:text-3xl text-brand-primary"></i>
                         <div>
-                            <p class="font-bold text-slate-800">Policy Paper</p>
-                            <p class="text-xs text-slate-500">"Mécanisme national intégré pour combler le déficit de financement vert"</p>
+                            <p class="font-bold text-slate-800 text-sm md:text-base">Policy Paper</p>
+                            <p class="text-[10px] md:text-xs text-slate-500">"Mécanisme national intégré pour combler le déficit de financement vert"</p>
                         </div>
                     </div>
                 </div>
-                <div class="glass-card p-6 rounded-xl">
-                    <h4 class="font-bold mb-2">La Méthode</h4>
+                <div class="glass-card p-4 md:p-6 rounded-xl">
+                    <h4 class="font-bold mb-2 text-sm md:text-base">La Méthode</h4>
                     <div class="flex items-center gap-4 mt-4">
-                        <i class="fa-solid fa-people-group text-3xl text-brand-primary"></i>
+                        <i class="fa-solid fa-people-group text-2xl md:text-3xl text-brand-primary"></i>
                         <div>
-                            <p class="font-bold text-slate-800">Groupe de Travail Multi-Acteurs</p>
-                            <p class="text-xs text-slate-500">12 entités publiques/privées engagées</p>
+                            <p class="font-bold text-slate-800 text-sm md:text-base">Groupe de Travail Multi-Acteurs</p>
+                            <p class="text-[10px] md:text-xs text-slate-500">12 entités publiques/privées engagées</p>
                         </div>
                     </div>
                 </div>
